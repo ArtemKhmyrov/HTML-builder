@@ -11,6 +11,16 @@ const filePath = path.join(__dirname, 'output.txt');
 const writeStream = fs.createWriteStream(filePath, { flags: 'a' });
 
 console.log("Введите текст для записи в файл. Для завершения напишите 'exit'.");
+
+rl.input.on('keypress', (char, key) => {
+  if (key && key.name === 'c' && key.ctrl) {
+    console.log('Прощайте! Ваш текст был записан в файл output.txt.');
+    rl.close();
+    writeStream.end();
+    process.exit(); 
+  }
+});
+
 rl.on('line', (input) => {
   if (input === 'exit') {
     console.log('Ваш текст записан в файл output.txt');
@@ -19,10 +29,4 @@ rl.on('line', (input) => {
   } else {
     writeStream.write(input + '\n');
   }
-});
-
-process.on('SIGINT', () => {
-  console.log('Ваш текст записан в файл output.txt');
-  rl.close();
-  writeStream.end();
 });
