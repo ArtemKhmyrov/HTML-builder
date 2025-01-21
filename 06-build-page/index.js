@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const readline = require('readline');
 const componentsDir = path.join(__dirname, 'components');
 const stylesDir = path.join(__dirname, 'styles');
 const assetsDir = path.join(__dirname, 'assets');
@@ -10,101 +9,82 @@ const indexHtmlPath = path.join(projectDistDir, 'index.html');
 const styleCssPath = path.join(projectDistDir, 'style.css');
 const assetsCopyDir = path.join(projectDistDir, 'assets');
 
-fs.mkdirSync(projectDistDir, { recursive: true });
-fs.mkdirSync(assetsCopyDir, { recursive: true });
+fs.promises.mkdir(projectDistDir, { recursive: true });
+fs.promises.mkdir(assetsCopyDir, { recursive: true });
 
-const copyAssets = (src, dest) => {
-  fs.readdir(src, (err, files) => {
-    if (err) {
-      console.error('Ошибка при чтении папки assets:', err.message);
-      return;
-    }
-
-    files.forEach(file => {
+const copyAssets = async (src, dest) => {
+  try {
+    const files = await fs.promises.readdir(src);
+    for (const file of files) {
       const filePath = path.join(src, file);
       const fileDest = path.join(dest, file);
 
-      fs.stat(filePath, (err, stats) => {
-        if (err) {
-          console.error('Ошибка при получении информации о файле:', err.message);
-          return;
-        }
+      const stats = await fs.promises.stat(filePath);
 
-        if (stats.isDirectory()) {
-          fs.mkdir(fileDest, { recursive: true }, (err) => {
-            if (err) {
-              console.error('Ошибка при создании папки:', err.message);
-              return;
-            }
-            copyAssets(filePath, fileDest);
-          });
-        } else {
-          fs.copyFile(filePath, fileDest, (err) => {
-            if (err) {
-              console.error('Ошибка при копировании файла:', err.message);
-            }
-          });
-        }
-      });
-    });
-  });
+      if (stats.isDirectory()) {
+        await fs.promises.mkdir(fileDest, { recursive: true });
+        await copyAssets(filePath, fileDest);
+      } else {
+        await fs.promises.copyFile(filePath, fileDest);
+      }
+    }
+  } catch (err) {
+    console.error('Ошибка при копировании ассетов:', err.message);
+  }
 };
 
-const buildHtml = () => {
-  fs.readFile(templateFilePath, 'utf-8', (err, templateData) => {
-    if (err) {
-      console.error('Ошибка при чтении файла шаблона:', err.message);
-      return;
-    }
-
+const buildHtml = async () => {
+  try {
+    const templateData = await fs.promises.readFile(templateFilePath, 'utf-8');
     const componentTags = templateData.match(/{{(.*?)}}/g) || [];
     let htmlContent = templateData;
-    componentTags.forEach(tag => {
+
+    for (const tag of componentTags) {
       const componentName = tag.slice(2, -2).trim(); // Убираем {{ и }}
       const componentPath = path.join(componentsDir, `${componentName}.html`);
 
-      if (fs.existsSync(componentPath)) {
-        const componentContent = fs.readFileSync(componentPath, 'utf-8');
+      try {
+        const componentContent = await fs.promises.readFile(componentPath, 'utf-8');
         htmlContent = htmlContent.replace(tag, componentContent);
+      } catch (err) {
+        console.error(`Ошибка при чтении компонента ${componentName}:`, err.message);
       }
-    });
-
-    fs.writeFile(indexHtmlPath, htmlContent, (err) => {
-      if (err) {
-        console.error('Ошибка при записи index.html:', err.message);
-      } else {
-        console.log('index.html успешно собран!');
-      }
-    });
-  });
-};
-
-const buildCss = () => {
-  fs.readdir(stylesDir, (err, files) => {
-    if (err) {
-      console.error('Ошибка при чтении папки стилей:', err.message);
-      return;
     }
 
+    await fs.promises.writeFile(indexHtmlPath, htmlContent);
+    console.log('index.html успешно собран!');
+  } catch (err) {
+    console.error('Ошибка при сборке HTML:', err.message);
+  }
+};
+
+const buildCss = async () => {
+  try {
+    const files = await fs.promises.readdir(stylesDir);
     const cssFiles = files.filter(file => path.extname(file) === '.css');
     let cssContent = '';
 
-    cssFiles.forEach(file => {
+    for (const file of cssFiles) {
       const filePath = path.join(stylesDir, file);
-      const content = fs.readFileSync(filePath, 'utf-8');
+      const content = await fs.promises.readFile(filePath, 'utf-8');
       cssContent += content;
-    });
+    }
 
-    fs.writeFile(styleCssPath, cssContent, (err) => {
-      if (err) {
-        console.error('Ошибка при записи стилей:', err.message);
-      } else {
-        console.log('style.css успешно собран!');
-      }
-    });
-  });
+    await fs.promises.writeFile(styleCssPath, cssContent);
+    console.log('style.css успешно собран!');
+  } catch (err) {
+    console.error('Ошибка при сборке CSS:', err.message);
+  }
 };
 
-copyAssets(assetsDir, assetsCopyDir);
-buildHtml();
-buildCss();
+const buildProject = async () => {
+  try {
+    await copyAssets(assetsDir, assetsCopyDir);
+    await buildHtml();
+    await buildCss();
+  } catch (err) {
+    console.error('Ошибка при сборке проекта:', err.message);
+  }
+};
+
+buildProject();
